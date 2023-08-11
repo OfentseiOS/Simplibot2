@@ -6,11 +6,16 @@
 //
 
 import SwiftUI
+import Combine
 
 struct ContentView: View {
-    @State var chatMessages: [ChatMessage] = ChatMessage.sampleMessages
+    @State var chatMessages: [ChatMessage] = []
     @State var messageText: String = ""
+   
+    
     let openAIService = OpenAIService()
+    @State var cancellables: Set<AnyCancellable> = Set<AnyCancellable>()
+
     
     var body: some View {
         VStack {
@@ -34,6 +39,7 @@ struct ContentView: View {
                 .padding()
                 .background(message.sender == .me ? Color.blue : Color.gray.opacity(0.1))
                 .cornerRadius(16)
+                
             if message.sender == .SimpliBot { Spacer() }
         }
     }
@@ -64,10 +70,24 @@ struct ContentView: View {
     }
     
     func sendMessage() {
-        openAIService.sendMessage(message: messageText).sink(compl: <#T##((Subscribers.Completion<Error>) -> Void)##((Subscribers.Completion<Error>) -> Void)##(Subscribers.Completion<Error>) -> Void#>, receiveValue: <#T##((OpenAIService.OpenAICompletionResponse) -> Void)##((OpenAIService.OpenAICompletionResponse) -> Void)##(OpenAIService.OpenAICompletionResponse) -> Void#>)
-        print(messageText)
-        // Implement your message sending logic here
-        // You can update the chatMessages array with the new message
+        let myMessage = ChatMessage(id: UUID().uuidString, content:
+            messageText, dateCreated: Date(), sender: .me)
+        chatMessages.append(myMessage)
+        
+        openAIService.sendMessage(message: messageText).sink { completion in
+            //Handle error
+        } receiveValue: { response in
+            guard let textResponse = response.choices.first?.text.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines.union(.init(charactersIn: "\""))) else {
+                return
+
+            }
+            let SimpliBotMessage = ChatMessage(id: response.id, content: textResponse, dateCreated: Date(), sender: .SimpliBot)
+            chatMessages.append(SimpliBotMessage)
+        }
+        .store(in: &cancellables)
+        
+        messageText = ""
+        
     }
 }
 
